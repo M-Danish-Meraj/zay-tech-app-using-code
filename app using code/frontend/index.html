@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#7c3aed">
+  <meta name="description" content="AI-powered social media post generator for ZayTech — built with LangChain, LangGraph and Gemini.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ZayTech AI">
+
+  <title>ZayTech AI Post Generator</title>
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/assets/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="/styles/app.css">
+</head>
+<body>
+
+<!-- ── Toast Container ──────────────────────────────────────────────────────── -->
+<div id="toast-container"></div>
+
+<!-- ── PWA Install Banner ───────────────────────────────────────────────────── -->
+<div id="install-banner">
+  <span>📱 Install <strong>ZayTech AI</strong> as an app for quick access</span>
+  <button id="btn-install">Install</button>
+  <button id="btn-dismiss">✕</button>
+</div>
+
+<!-- ── App Shell ────────────────────────────────────────────────────────────── -->
+<div id="app">
+
+  <!-- Header -->
+  <header>
+    <div class="header-brand">
+      <div class="header-logo" style="overflow:hidden;padding:0;">
+        <img src="/assets/icons/logo.jpeg" alt="ZayTech Logo" style="width:36px;height:36px;object-fit:cover;border-radius:10px;">
+      </div>
+      <div>
+        <div class="header-title">ZayTech AI</div>
+        <div class="header-subtitle">LangChain · LangGraph · Gemini</div>
+      </div>
+    </div>
+    <button id="btn-history">🕐 History</button>
+  </header>
+
+  <!-- ══ SECTION: Generator ═══════════════════════════════════════════════════ -->
+  <section id="section-generator" class="section active">
+
+    <div class="hero">
+      <div class="badge">⚡ Powered by Gemini 2.0</div>
+      <h1>AI Post Generator</h1>
+      <p>Describe your post idea and let Gemini craft the perfect image + caption for your social media.</p>
+    </div>
+
+    <div class="card">
+      <div class="input-label">Your Prompt</div>
+      <textarea
+        id="prompt-input"
+        class="prompt-input"
+        maxlength="300"
+        placeholder="e.g. generate a post for AI and machine learning services of my ZayTech company..."
+      ></textarea>
+      <div class="char-count" id="char-count">0 / 300</div>
+
+      <button id="btn-generate" class="btn-primary">
+        ✨ Generate Post
+      </button>
+      <p class="text-muted text-center mt-12">Tip: Press <kbd>Ctrl + Enter</kbd> to generate</p>
+    </div>
+
+    <!-- Reference Template Card -->
+    <div class="card template-card">
+      <div class="input-label" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>🖼️ Reference Poster Template</span>
+        <span id="template-status-badge" class="template-status">No template set</span>
+      </div>
+      <p class="text-muted" style="font-size:12px;margin-bottom:12px;">
+        Upload a sample poster image. Gemini Vision will analyze its visual layout, grid, and colors to match your generated posts to this style.
+      </p>
+      
+      <div id="template-preview-container" class="template-preview-container" style="display:none;">
+        <img id="template-preview-img" src="" alt="Reference Template Preview" class="template-preview-img">
+        <button id="btn-delete-template" class="btn-reject" style="padding:6px 12px;font-size:12px;width:auto;">🗑️ Delete Template</button>
+      </div>
+
+      <div id="template-upload-box" class="template-upload-box">
+        <label for="template-file-input" class="btn-secondary" style="cursor:pointer;display:inline-block;padding:8px 16px;font-size:13px;">
+          📁 Choose Reference Image
+        </label>
+        <input type="file" id="template-file-input" accept="image/*" style="display:none;">
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ══ SECTION: Loading ══════════════════════════════════════════════════════ -->
+  <section id="section-loading" class="section">
+    <div class="card loading-container">
+      <div class="loading-ring"></div>
+      <p id="loading-msg" style="color:#a78bfa;font-weight:600;font-size:15px;">Starting LangGraph workflow...</p>
+
+      <div class="loading-steps">
+        <div class="loading-step" id="step-1">
+          <span class="step-icon">🧠</span>
+          <span>Refining your prompt with Gemini...</span>
+        </div>
+        <div class="loading-step" id="step-2">
+          <span class="step-icon">🎨</span>
+          <span>Generating image prompt...</span>
+        </div>
+        <div class="loading-step" id="step-3">
+          <span class="step-icon">⚡</span>
+          <span>Creating AI image...</span>
+        </div>
+        <div class="loading-step" id="step-4">
+          <span class="step-icon">✍️</span>
+          <span>Writing social caption...</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ SECTION: Result ═══════════════════════════════════════════════════════ -->
+  <section id="section-result" class="section">
+
+    <!-- Post Image with Overlays -->
+    <div class="post-canvas-container">
+      <img id="result-image" class="post-image" src="" alt="Generated post image">
+
+      <!-- Logo: top-right -->
+      <div class="overlay-logo">
+        <img id="overlay-logo-img" src="" alt="Logo" style="display:none">
+        <span id="overlay-logo-text" class="overlay-logo-text">ZayTech</span>
+      </div>
+
+      <!-- Image name badge: top-left -->
+      <div class="image-badge" id="image-badge-text"></div>
+
+      <!-- Email: center-bottom -->
+      <div class="overlay-email">
+        <span id="overlay-email-text">zaytech@gmail.com</span>
+      </div>
+    </div>
+
+    <!-- Caption -->
+    <div class="card">
+      <div class="caption-label">
+        Generated Caption
+        <button id="btn-copy-caption" class="btn-secondary" style="padding:6px 12px;font-size:11px">📋 Copy</button>
+      </div>
+      <div id="caption-text" class="caption-text"></div>
+    </div>
+
+    <!-- Actions -->
+    <div class="action-row">
+      <button id="btn-download" class="btn-primary" style="flex:1;background:linear-gradient(135deg,#059669,#10b981);">💾 Download Image</button>
+    </div>
+    <div class="action-row" style="margin-top:8px">
+      <button id="btn-reject" class="btn-reject">✕ Reject</button>
+      <button id="btn-approve" class="btn-approve">✓ Approve</button>
+    </div>
+    <div class="action-row" style="margin-top:8px">
+      <button id="btn-regen" class="btn-secondary" style="flex:1">🔄 Regenerate</button>
+      <button id="btn-start-over" class="btn-secondary" style="flex:1">← Start Over</button>
+    </div>
+
+  </section>
+
+  <!-- ══ SECTION: History ══════════════════════════════════════════════════════ -->
+  <section id="section-history" class="section">
+    <div class="history-header">
+      <h2>📋 Approved History</h2>
+      <button id="btn-back-history" class="btn-secondary">← Back</button>
+    </div>
+    <div id="history-grid" class="history-grid"></div>
+  </section>
+
+</div><!-- /#app -->
+
+<script src="/scripts/app.js"></script>
+</body>
+</html>
