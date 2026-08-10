@@ -84,24 +84,21 @@ async function withFallback(fn, openAIFallbackPromptBuilder = null) {
 
 // ── Prompt templates ─────────────────────────────────────────────────────────
 const promptRefineTemplate = PromptTemplate.fromTemplate(`
-You are an expert AI prompt engineer specializing in high-converting UI/UX promotional posters and marketing graphics.
-Task: Translate the user's simple concept into an ultra-detailed text-to-image prompt that generates a complete, structured promotional poster.
+You are an expert AI prompt engineer specializing in crafting hyper-detailed, high-converting promotional graphics and marketing poster prompts specifically tailored for OpenAI DALL-E 3 image generation.
+Task: Translate the user's concept into a perfect DALL-E 3 text-to-image prompt.
 
 User Request: "{userPrompt}"
 Company Name: "{companyName}"
 
 INSTRUCTIONS FOR YOU (THE PROMPT ENGINEER):
-Analyze the user's request and write a highly detailed image generation prompt. 
-If the user specifies text or offers (like "AI agents" or "free hosting"), instruct the image generator to render that specific text beautifully integrated into the design.
+Analyze the user's request and write a single, highly detailed image generation prompt optimized for OpenAI DALL-E 3:
+- **Layout & Composition**: A modern, highly structured social media promotional poster. Bold centralized headline area at the top, a grid of sleek glassmorphic feature cards in the middle, and a rich call-to-action banner at the bottom. Leave top-right clear for logo overlay.
+- **Subject & Visual Elements**: Extract the core theme from the user's request. Include premium 3D tech assets (floating glowing icons, 3D laptops, isometric server racks, sparkling stars, and stylized icons).
+- **Typography & Text**: Instruct DALL-E 3 to render clean, legible, bold typography for main headline and offer badges.
+- **Color Palette & Lighting**: Ethereal palette: bright white and starry light-blue gradient background, frosted glass cards, electric blue/cyan accents, and soft glow lighting.
+- **Style**: Premium 3D vector graphics combined with photorealistic glassmorphism, 8k resolution, dribbble UI aesthetic, octane render style, hyper-clean commercial web design.
 
-Generate a single, highly detailed image generation prompt following these exact specifications:
-- **Layout & Composition**: A modern, highly structured social media promotional poster. The composition should look like a professional UI/UX design: a bold centralized headline area at the top, a grid of sleek glassmorphic feature cards in the middle, and a rich, elevated call-to-action banner at the bottom. Leave the extreme top-right empty for an HTML logo overlay.
-- **Subject & Visual Elements**: Extract the core theme from the user's request. Include premium 3D tech assets (e.g., floating glowing cloud icons, 3D laptops, isometric server racks, sparkling stars, and vibrant stylized icons inside the feature cards). 
-- **Typography & Text Integration**: Instruct the image generator to render prominent, highly legible, professional typography for the main headline and offer badges based on the user's request. Describe the text styling (e.g., bold sans-serif, glowing white text, blue gradient text).
-- **Color Palette & Lighting**: A clean, ethereal color palette: bright white and starry light-blue gradient background, frosted glass (glassmorphism) cards, and vibrant electric blue and cyan accents. Bright, airy studio lighting with subtle glowing particle effects.
-- **Style & Quality**: Premium 3D vector graphics combined with photorealistic glassmorphism, 8k resolution render, dribbble UI aesthetic, octane render style, ultra-sharp edges, hyper-clean commercial web design graphic.
-
-CRITICAL INSTRUCTIONS: Output ONLY the final raw prompt string. Do not use quotes, markdown formatting, introductory text, or explanations.
+CRITICAL INSTRUCTIONS: Output ONLY the final raw prompt string for DALL-E 3. Do not use quotes, markdown formatting, introductory text, or explanations.
 `);
 
 const captionTemplate = PromptTemplate.fromTemplate(`
@@ -119,9 +116,9 @@ Requirements:
 Return ONLY the caption text, nothing else.
 `);
 
-// ── Node 1: Generate refined image prompt ────────────────────────────────────
+// ── Node 1: Generate refined DALL-E 3 image prompt using Gemini AI ────────────
 export async function generateImagePrompt(state) {
-  console.log('[Node 1] Refining image prompt...');
+  console.log('[Node 1] Gemini AI is crafting perfect image prompt for ChatGPT DALL-E 3...');
 
   // Check if reference template or logo image exists in binary form
   const hasTemplateDisk = fs.existsSync(templatePath);
@@ -162,17 +159,17 @@ export async function generateImagePrompt(state) {
           });
         }
 
-        const visionTextInstruction = `${formattedInstruction}\n\nIMPORTANT ADDITIONAL INSTRUCTION: Attached binary reference template image(s)/logo have been provided above. Analyze the visual layout, grid arrangement, card structure, brand styling, color scheme, and typography. Ensure your generated text-to-image prompt closely follows the visual structure and design style of the reference template while adapting to the user's specific request ("${state.userPrompt}").`;
+        const visionTextInstruction = `${formattedInstruction}\n\nIMPORTANT ADDITIONAL INSTRUCTION: Attached binary reference template image(s)/logo have been provided above. Analyze the visual layout, grid arrangement, card structure, brand styling, color scheme, and typography. Ensure your generated text-to-image prompt for DALL-E 3 closely follows the visual structure and design style of the reference template while adapting to the user's specific request ("${state.userPrompt}").`;
         visionPayload.push(visionTextInstruction);
 
         const result = await visionModel.generateContent(visionPayload);
         return result.response.text();
       });
 
-      console.log('[Node 1] Vision Image prompt:', imagePrompt.trim());
+      console.log('[Node 1] Gemini Vision DALL-E 3 Prompt:', imagePrompt.trim());
       return { ...state, imagePrompt: imagePrompt.trim() };
     } catch (err) {
-      console.warn('⚠️ Vision prompt generation failed, falling back to text prompt:', err?.message || err);
+      console.warn('⚠️ Vision prompt generation failed, falling back to Gemini text prompt:', err?.message || err);
     }
   }
 
@@ -182,26 +179,26 @@ export async function generateImagePrompt(state) {
       const chain = promptRefineTemplate.pipe(llm).pipe(new StringOutputParser());
       return chain.invoke({ 
         userPrompt: state.userPrompt,
-        companyName: process.env.COMPANY_NAME || 'ZayTech'
+        companyName: process.env.COMPANY_NAME || state.companyName || 'ZayTech'
       });
     },
-    () => `You are an expert AI prompt engineer. Translate this concept into an ultra-detailed text-to-image prompt for a high-converting promotional graphic banner for ${process.env.COMPANY_NAME || 'ZayTech'}.\nUser Request: "${state.userPrompt}"\nOutput ONLY the final raw prompt string.`
+    () => `You are an expert AI prompt engineer. Translate this concept into an ultra-detailed text-to-image prompt for OpenAI DALL-E 3 to generate a high-converting promotional graphic banner for ${process.env.COMPANY_NAME || 'ZayTech'}.\nUser Request: "${state.userPrompt}"\nOutput ONLY the final raw prompt string.`
   );
 
-  console.log('[Node 1] Image prompt:', imagePrompt.trim());
+  console.log('[Node 1] Gemini generated DALL-E 3 Prompt:', imagePrompt.trim());
   return { ...state, imagePrompt: imagePrompt.trim() };
 }
 
-// ── Node 2: Generate image (OpenAI DALL-E 3 -> Gemini Imagen -> Pollinations) ─────────
+// ── Node 2: Generate image with ChatGPT / OpenAI Paid DALL-E 3 API ─────────────
 export async function generateImage(state) {
-  console.log('[Node 2] Generating image...');
+  console.log('[Node 2] Generating image with ChatGPT / OpenAI DALL-E 3 API...');
   const cleanPrompt = (state.imagePrompt || state.userPrompt || '').replace(/[\*\#]/g, '').trim();
 
-  // Attempt 1: OpenAI DALL-E 3 if OPENAI_API_KEY is configured
+  // Primary Engine: OpenAI DALL-E 3 (ChatGPT Paid API)
   const openAIKey = process.env.OPENAI_API_KEY;
   if (openAIKey && !openAIKey.includes('your_')) {
     try {
-      console.log('[Node 2] Attempt 1: Generating image with OpenAI DALL-E 3...');
+      console.log('🤖 Sending Gemini-refined prompt to ChatGPT DALL-E 3 Paid API...');
       const openai = new OpenAI({ apiKey: openAIKey });
       const response = await openai.images.generate({
         model: 'dall-e-3',
@@ -213,12 +210,14 @@ export async function generateImage(state) {
       });
       const imageUrl = response.data?.[0]?.url;
       if (imageUrl) {
-        console.log('[Node 2] ✅ OpenAI image generated successfully.');
+        console.log('[Node 2] ✅ ChatGPT DALL-E 3 image generated successfully!');
         return { ...state, imageUrl, imageSource: 'openai' };
       }
     } catch (err) {
-      console.warn('[Node 2] OpenAI DALL-E 3 attempt failed:', err?.message || err);
+      console.warn('⚠️ ChatGPT DALL-E 3 API call failed:', err?.message || err);
     }
+  } else {
+    console.warn('⚠️ OPENAI_API_KEY not found in settings. Provide your OpenAI key in Settings to use ChatGPT DALL-E 3.');
   }
 
   // Attempt 2: Gemini Image Generation / Imagen if Gemini keys are configured

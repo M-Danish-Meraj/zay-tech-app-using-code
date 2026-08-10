@@ -1,4 +1,4 @@
-const CACHE_NAME = 'zaytech-ai-v5';
+const CACHE_NAME = 'zaytech-ai-v6';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
