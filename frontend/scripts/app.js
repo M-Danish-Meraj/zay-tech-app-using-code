@@ -664,18 +664,18 @@ btnDeleteLogo?.addEventListener('click', () => {
 });
 
 /* ── Event Listeners ────────────────────────────────────────────────────────── */
-btnGenerate.addEventListener('click', handleGenerate);
-promptInput.addEventListener('keydown', (e) => {
+btnGenerate?.addEventListener('click', handleGenerate);
+promptInput?.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.key === 'Enter') handleGenerate();
 });
-btnApprove.addEventListener('click', handleApprove);
-btnReject.addEventListener('click', handleReject);
-btnRegen.addEventListener('click', handleRegen);
-btnCopyCaption.addEventListener('click', handleCopyCaption);
+btnApprove?.addEventListener('click', handleApprove);
+btnReject?.addEventListener('click', handleReject);
+btnRegen?.addEventListener('click', handleRegen);
+btnCopyCaption?.addEventListener('click', handleCopyCaption);
 btnDownload?.addEventListener('click', handleDownloadImage);
-btnStartOver.addEventListener('click', resetGenerator);
-btnHistory.addEventListener('click', showHistory);
-btnBackHistory.addEventListener('click', resetGenerator);
+btnStartOver?.addEventListener('click', resetGenerator);
+btnHistory?.addEventListener('click', showHistory);
+btnBackHistory?.addEventListener('click', resetGenerator);
 
 btnSettings?.addEventListener('click', () => {
   try {
