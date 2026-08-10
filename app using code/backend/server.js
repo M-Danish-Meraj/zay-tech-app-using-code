@@ -38,17 +38,28 @@ const activeGenerations = new Map();
 
 // ── API: Generate Post (LangGraph workflow) ───────────────────────────────────
 app.post('/api/generate', async (req, res) => {
-  const { prompt } = req.body;
+  const { prompt, logoBase64, companyName, contactEmail, clientGeminiKeys, clientOpenAIKey } = req.body;
 
   if (!prompt || typeof prompt !== 'string' || prompt.trim().length < 3) {
     return res.status(400).json({ error: 'Prompt must be at least 3 characters.' });
   }
+
+  // Update in-memory keys dynamically if client provided them
+  if (Array.isArray(clientGeminiKeys) && clientGeminiKeys.length > 0) {
+    if (clientGeminiKeys[0]) process.env.GEMINI_API_KEY_1 = clientGeminiKeys[0];
+    if (clientGeminiKeys[1]) process.env.GEMINI_API_KEY_2 = clientGeminiKeys[1];
+    if (clientGeminiKeys[2]) process.env.GEMINI_API_KEY_3 = clientGeminiKeys[2];
+  }
+  if (clientOpenAIKey) process.env.OPENAI_API_KEY = clientOpenAIKey;
 
   console.log(`\n🚀 Starting LangGraph workflow for: "${prompt}"`);
 
   try {
     const finalState = await postGeneratorGraph.invoke({
       userPrompt: prompt.trim(),
+      companyName: companyName || process.env.COMPANY_NAME || 'ZayTech',
+      contactEmail: contactEmail || process.env.CONTACT_EMAIL || 'zaytech@gmail.com',
+      logoBase64: logoBase64 || null,
     });
 
     const result = {
@@ -61,6 +72,7 @@ app.post('/api/generate', async (req, res) => {
       caption: finalState.caption,
       contactEmail: finalState.contactEmail,
       companyName: finalState.companyName,
+      logoBase64: finalState.logoBase64 || null,
       logoPath: finalState.logoPath,
       prompt: finalState.userPrompt,
       imagePrompt: finalState.imagePrompt,

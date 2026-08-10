@@ -222,12 +222,29 @@
 
       <!-- Branding Group -->
       <div style="margin-bottom:20px;">
-        <div class="input-label">🏢 Branding & Overlays</div>
+        <div class="input-label" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>🏢 Branding & Logo Overlays</span>
+          <span id="logo-status-badge" class="template-status">No Logo Uploaded</span>
+        </div>
+        
         <label class="settings-field-label">Company Name</label>
         <input type="text" id="input-company-name" class="prompt-input settings-input" placeholder="ZayTech" />
         
-        <label class="settings-field-label">Contact Email</label>
+        <label class="settings-field-label">Contact Email / Gmail</label>
         <input type="email" id="input-contact-email" class="prompt-input settings-input" placeholder="zaytech@gmail.com" />
+
+        <!-- Logo Upload Section -->
+        <label class="settings-field-label">Company Logo (.jpg / .png)</label>
+        <div id="logo-preview-container" class="template-preview-container" style="display:none;margin-bottom:10px;">
+          <img id="logo-preview-img" src="" alt="Company Logo Preview" class="template-preview-img">
+          <button id="btn-delete-logo" class="btn-reject" style="padding:6px 12px;font-size:12px;width:auto;">🗑️ Remove Logo</button>
+        </div>
+        <div>
+          <label for="logo-file-input" class="btn-secondary" style="cursor:pointer;display:inline-block;padding:8px 16px;font-size:12px;">
+            🖼️ Choose Logo Image
+          </label>
+          <input type="file" id="logo-file-input" accept="image/png, image/jpeg, image/jpg" style="display:none;">
+        </div>
       </div>
 
       <button id="btn-save-settings" class="btn-primary">

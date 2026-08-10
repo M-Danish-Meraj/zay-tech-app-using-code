@@ -36,6 +36,7 @@ const workflow = new StateGraph({
     generationId: { value: (x, y) => y ?? x, default: () => '' },
     contactEmail: { value: (x, y) => y ?? x, default: () => '' },
     companyName: { value: (x, y) => y ?? x, default: () => '' },
+    logoBase64: { value: (x, y) => y ?? x, default: () => null },
     logoPath: { value: (x, y) => y ?? x, default: () => null },
     status: { value: (x, y) => y ?? x, default: () => 'pending' },
   }

@@ -143,16 +143,28 @@ export async function generateImagePrompt(state) {
 
         const visionPrompt = `${formattedInstruction}\n\nIMPORTANT ADDITIONAL INSTRUCTION: An attached reference template image has been provided above. Analyze its visual layout, grid arrangement, card structure, and color scheme. Ensure your generated text-to-image prompt closely follows the visual structure and design style of this reference image while adapting to the user's specific request ("${state.userPrompt}").`;
 
-        const result = await visionModel.generateContent([
-          {
-            inlineData: {
-              data: base64Image,
-              mimeType: 'image/png'
-            }
-          },
-          visionPrompt
-        ]);
+        const visionPayload = [];
+        
+        // Attach reference template if present
+        if (hasTemplate) {
+          const templateBuffer = fs.readFileSync(templatePath);
+          visionPayload.push({
+            inlineData: { data: templateBuffer.toString('base64'), mimeType: 'image/png' }
+          });
+        }
 
+        // Attach company logo binary if present
+        if (state.logoBase64 && typeof state.logoBase64 === 'string') {
+          const cleanLogo = state.logoBase64.replace(/^data:image\/\w+;base64,/, '');
+          visionPayload.push({
+            inlineData: { data: cleanLogo, mimeType: 'image/png' }
+          });
+        }
+
+        const visionPrompt = `${formattedInstruction}\n\nIMPORTANT ADDITIONAL INSTRUCTION: Attached binary reference image(s)/logo have been provided above. Analyze the visual elements, brand styling, color scheme, and layout. Ensure your generated text-to-image prompt closely follows the visual structure and brand style while adapting to the user's specific request ("${state.userPrompt}").`;
+        visionPayload.push(visionPrompt);
+
+        const result = await visionModel.generateContent(visionPayload);
         return result.response.text();
       });
 

@@ -102,6 +102,48 @@ function stopLoadingAnimation() {
   steps.forEach(s => s.classList.add('done'));
 }
 
+/* ── Local Mobile Device Storage Helpers ───────────────────────────────────── */
+const STORAGE_KEY_SETTINGS = 'zaytech_device_settings';
+const STORAGE_KEY_HISTORY  = 'zaytech_device_history';
+
+function getLocalSettings() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_SETTINGS);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveLocalSettings(data) {
+  try {
+    const current = getLocalSettings();
+    const updated = { ...current, ...data };
+    localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(updated));
+  } catch (e) {
+    console.error('Failed to save to localStorage:', e);
+  }
+}
+
+function getLocalHistory() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_HISTORY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveLocalHistoryPost(post) {
+  try {
+    const history = getLocalHistory();
+    history.unshift(post);
+    localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(history));
+  } catch (e) {
+    console.error('Failed to save post to local device storage:', e);
+  }
+}
+
 /* ── Generate Post ─────────────────────────────────────────────────────────── */
 async function handleGenerate() {
   const prompt = promptInput.value.trim();
@@ -114,11 +156,21 @@ async function handleGenerate() {
   startLoadingAnimation();
   btnGenerate.disabled = true;
 
+  const localSet = getLocalSettings();
+  const body = {
+    prompt,
+    companyName: localSet.companyName || 'ZayTech',
+    contactEmail: localSet.contactEmail || 'zaytech@gmail.com',
+    logoBase64: localSet.logoDataUrl || null,
+    clientGeminiKeys: [localSet.gemini1, localSet.gemini2, localSet.gemini3].filter(Boolean),
+    clientOpenAIKey: localSet.openaiKey || null,
+  };
+
   try {
     const res = await fetch(`${API_BASE}/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify(body),
     });
 
     const data = await res.json();
@@ -188,16 +240,24 @@ function renderResult(data) {
     onError();
   }
 
-  // Logo overlay — always serve from frontend assets
+  // Logo overlay — prefer local stored logo or data.logoBase64
+  const localSet = getLocalSettings();
   const logoEl = document.getElementById('overlay-logo-img');
   const logoText = document.getElementById('overlay-logo-text');
-  logoText.textContent = data.companyName || 'ZayTech';
-  logoEl.src = '/assets/icons/logo.jpeg';
-  logoEl.style.display = 'block';
+  const activeLogo = localSet.logoDataUrl || data.logoBase64;
+
+  logoText.textContent = localSet.companyName || data.companyName || 'ZayTech';
+  if (activeLogo) {
+    logoEl.src = activeLogo;
+    logoEl.style.display = 'block';
+  } else {
+    logoEl.src = '/assets/icons/logo.jpeg';
+    logoEl.style.display = 'block';
+  }
 
   // Email overlay
   document.getElementById('overlay-email-text').textContent =
-    data.contactEmail || 'zaytech@gmail.com';
+    localSet.contactEmail || data.contactEmail || 'zaytech@gmail.com';
 
   // Image badge
   document.getElementById('image-badge-text').textContent =
@@ -211,6 +271,20 @@ function renderResult(data) {
 async function handleApprove() {
   if (!currentGeneration) return;
   btnApprove.disabled = true;
+  
+  const post = {
+    id: currentGeneration.generationId || ('gen_' + Date.now()),
+    caption: currentGeneration.caption,
+    imageUrl: currentGeneration.imageUrl,
+    imageBase64: currentGeneration.imageBase64,
+    imageMimeType: currentGeneration.imageMimeType,
+    approvedAt: new Date().toISOString(),
+    status: 'Approved'
+  };
+
+  // Always save to mobile local device storage first
+  saveLocalHistoryPost(post);
+
   try {
     await fetch(`${API_BASE}/approve`, {
       method: 'POST',
@@ -222,13 +296,13 @@ async function handleApprove() {
         imageBase64: currentGeneration.imageBase64,
       }),
     });
-    toast('Post approved and saved! 🎉');
-    resetGenerator();
   } catch (err) {
-    toast('Approval failed. Please try again.', 'error');
-  } finally {
-    btnApprove.disabled = false;
+    console.warn('Backend approval sync notice:', err?.message || err);
   }
+
+  toast('Post approved and saved to your device! 🎉');
+  btnApprove.disabled = false;
+  resetGenerator();
 }
 
 /* ── Reject ─────────────────────────────────────────────────────────────────── */
@@ -462,21 +536,43 @@ async function handleDownloadImage() {
 }
 
 /* ── Settings Management ────────────────────────────────────────────────────── */
+const logoFileInput = document.getElementById('logo-file-input');
+const logoPreviewContainer = document.getElementById('logo-preview-container');
+const logoPreviewImg = document.getElementById('logo-preview-img');
+const btnDeleteLogo = document.getElementById('btn-delete-logo');
+const logoStatusBadge = document.getElementById('logo-status-badge');
+
 async function loadSettings() {
+  const localSet = getLocalSettings();
+
+  // Load Logo from Device Storage
+  if (logoPreviewImg && logoPreviewContainer && logoStatusBadge) {
+    if (localSet.logoDataUrl) {
+      logoPreviewImg.src = localSet.logoDataUrl;
+      logoPreviewContainer.style.display = 'flex';
+      logoStatusBadge.textContent = '✓ Custom Logo Active';
+      logoStatusBadge.classList.add('active');
+    } else {
+      logoPreviewContainer.style.display = 'none';
+      logoStatusBadge.textContent = 'No Logo Uploaded';
+      logoStatusBadge.classList.remove('active');
+    }
+  }
+
   try {
     const res = await fetch(`${API_BASE}/settings`);
     const data = await res.json();
 
-    if (inputGemini1) inputGemini1.value = data.geminiKey1Masked || '';
-    if (inputGemini2) inputGemini2.value = data.geminiKey2Masked || '';
-    if (inputGemini3) inputGemini3.value = data.geminiKey3Masked || '';
-    if (inputOpenAI)  inputOpenAI.value  = data.openaiKeyMasked || '';
-    if (inputCompanyName) inputCompanyName.value = data.companyName || 'ZayTech';
-    if (inputContactEmail) inputContactEmail.value = data.contactEmail || 'zaytech@gmail.com';
+    if (inputGemini1) inputGemini1.value = localSet.gemini1 || data.geminiKey1Masked || '';
+    if (inputGemini2) inputGemini2.value = localSet.gemini2 || data.geminiKey2Masked || '';
+    if (inputGemini3) inputGemini3.value = localSet.gemini3 || data.geminiKey3Masked || '';
+    if (inputOpenAI)  inputOpenAI.value  = localSet.openaiKey || data.openaiKeyMasked || '';
+    if (inputCompanyName) inputCompanyName.value = localSet.companyName || data.companyName || 'ZayTech';
+    if (inputContactEmail) inputContactEmail.value = localSet.contactEmail || data.contactEmail || 'zaytech@gmail.com';
 
     // Status Badges
     if (geminiStatusBadge) {
-      if (data.hasGeminiKey1) {
+      if (localSet.gemini1 || data.hasGeminiKey1) {
         geminiStatusBadge.textContent = '✓ Gemini Active';
         geminiStatusBadge.classList.add('active');
       } else {
@@ -486,7 +582,7 @@ async function loadSettings() {
     }
 
     if (openaiStatusBadge) {
-      if (data.hasOpenAIKey) {
+      if (localSet.openaiKey || data.hasOpenAIKey) {
         openaiStatusBadge.textContent = '✓ OpenAI Active (DALL-E 3)';
         openaiStatusBadge.classList.add('active');
       } else {
@@ -495,44 +591,77 @@ async function loadSettings() {
       }
     }
   } catch (err) {
-    console.error('Failed to load settings:', err);
+    console.error('Failed to load backend settings, using device settings:', err);
+    if (inputCompanyName) inputCompanyName.value = localSet.companyName || 'ZayTech';
+    if (inputContactEmail) inputContactEmail.value = localSet.contactEmail || 'zaytech@gmail.com';
   }
 }
 
 async function handleSaveSettings() {
-  toast('Saving settings...');
+  toast('Saving settings to device...');
 
-  const body = {
-    geminiKey1: inputGemini1?.value || '',
-    geminiKey2: inputGemini2?.value || '',
-    geminiKey3: inputGemini3?.value || '',
-    openaiKey:  inputOpenAI?.value  || '',
+  const settingsData = {
+    gemini1: inputGemini1?.value || '',
+    gemini2: inputGemini2?.value || '',
+    gemini3: inputGemini3?.value || '',
+    openaiKey: inputOpenAI?.value || '',
     companyName: inputCompanyName?.value || 'ZayTech',
     contactEmail: inputContactEmail?.value || 'zaytech@gmail.com',
   };
 
+  // Save to mobile device local storage
+  saveLocalSettings(settingsData);
+
+  // Sync with backend if available
   try {
-    const res = await fetch(`${API_BASE}/settings`, {
+    await fetch(`${API_BASE}/settings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify({
+        geminiKey1: settingsData.gemini1,
+        geminiKey2: settingsData.gemini2,
+        geminiKey3: settingsData.gemini3,
+        openaiKey: settingsData.openaiKey,
+        companyName: settingsData.companyName,
+        contactEmail: settingsData.contactEmail,
+      })
     });
-    const data = await res.json();
-    if (data.success) {
-      toast('Settings saved & applied instantly! 💾');
-      loadSettings();
-      // Update UI overlays instantly
-      const overlayLogoText = document.getElementById('overlay-logo-text');
-      const overlayEmailText = document.getElementById('overlay-email-text');
-      if (overlayLogoText) overlayLogoText.textContent = data.companyName;
-      if (overlayEmailText) overlayEmailText.textContent = data.contactEmail;
-    } else {
-      toast(data.error || 'Failed to save settings', 'error');
-    }
   } catch (err) {
-    toast('Error saving settings', 'error');
+    console.warn('Backend sync notice:', err?.message || err);
   }
+
+  toast('Settings saved to your device! 💾');
+  loadSettings();
+
+  // Update UI overlays instantly
+  const overlayLogoText = document.getElementById('overlay-logo-text');
+  const overlayEmailText = document.getElementById('overlay-email-text');
+  if (overlayLogoText) overlayLogoText.textContent = settingsData.companyName;
+  if (overlayEmailText) overlayEmailText.textContent = settingsData.contactEmail;
 }
+
+// Logo file picker handler
+logoFileInput?.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = reader.result;
+    saveLocalSettings({ logoDataUrl: dataUrl });
+    toast('Custom logo saved to device! 🖼️');
+    loadSettings();
+  };
+  reader.readAsDataURL(file);
+});
+
+// Logo delete handler
+btnDeleteLogo?.addEventListener('click', () => {
+  saveLocalSettings({ logoDataUrl: null });
+  if (logoFileInput) logoFileInput.value = '';
+  toast('Custom logo removed');
+  loadSettings();
+});
 
 /* ── Event Listeners ────────────────────────────────────────────────────────── */
 btnGenerate.addEventListener('click', handleGenerate);
