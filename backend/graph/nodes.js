@@ -123,28 +123,31 @@ Return ONLY the caption text, nothing else.
 export async function generateImagePrompt(state) {
   console.log('[Node 1] Refining image prompt...');
 
-  // Check if reference template image exists in binary form
-  const hasTemplate = fs.existsSync(templatePath);
+  // Check if reference template or logo image exists in binary form
+  const hasTemplateDisk = fs.existsSync(templatePath);
+  const hasVisualAssets = hasTemplateDisk || state.templateBase64 || state.logoBase64;
 
-  if (hasTemplate) {
-    console.log('🖼️ Reference template image detected! Sending image binary to Gemini Vision...');
+  if (hasVisualAssets) {
+    console.log('🖼️ Visual reference template/logo detected! Sending binary payload to Gemini Vision...');
     try {
-      const templateBuffer = fs.readFileSync(templatePath);
-      const base64Image = templateBuffer.toString('base64');
-
       const imagePrompt = await withFallback(async (apiKey, model) => {
         const genAI = new GoogleGenerativeAI(apiKey);
         const visionModel = genAI.getGenerativeModel({ model });
 
         const formattedInstruction = await promptRefineTemplate.format({
           userPrompt: state.userPrompt,
-          companyName: process.env.COMPANY_NAME || 'ZayTech'
+          companyName: process.env.COMPANY_NAME || state.companyName || 'ZayTech'
         });
 
         const visionPayload = [];
         
-        // Attach reference template if present
-        if (hasTemplate) {
+        // Attach reference template from client base64 if present
+        if (state.templateBase64 && typeof state.templateBase64 === 'string') {
+          const cleanTemplate = state.templateBase64.replace(/^data:image\/\w+;base64,/, '');
+          visionPayload.push({
+            inlineData: { data: cleanTemplate, mimeType: 'image/png' }
+          });
+        } else if (hasTemplateDisk) {
           const templateBuffer = fs.readFileSync(templatePath);
           visionPayload.push({
             inlineData: { data: templateBuffer.toString('base64'), mimeType: 'image/png' }
@@ -159,7 +162,7 @@ export async function generateImagePrompt(state) {
           });
         }
 
-        const visionTextInstruction = `${formattedInstruction}\n\nIMPORTANT ADDITIONAL INSTRUCTION: Attached binary reference image(s)/logo have been provided above. Analyze the visual elements, brand styling, color scheme, and layout. Ensure your generated text-to-image prompt closely follows the visual structure and brand style while adapting to the user's specific request ("${state.userPrompt}").`;
+        const visionTextInstruction = `${formattedInstruction}\n\nIMPORTANT ADDITIONAL INSTRUCTION: Attached binary reference template image(s)/logo have been provided above. Analyze the visual layout, grid arrangement, card structure, brand styling, color scheme, and typography. Ensure your generated text-to-image prompt closely follows the visual structure and design style of the reference template while adapting to the user's specific request ("${state.userPrompt}").`;
         visionPayload.push(visionTextInstruction);
 
         const result = await visionModel.generateContent(visionPayload);

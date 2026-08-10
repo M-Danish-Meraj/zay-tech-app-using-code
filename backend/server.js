@@ -38,7 +38,7 @@ const activeGenerations = new Map();
 
 // ── API: Generate Post (LangGraph workflow) ───────────────────────────────────
 app.post('/api/generate', async (req, res) => {
-  const { prompt, logoBase64, companyName, contactEmail, clientGeminiKeys, clientOpenAIKey } = req.body;
+  const { prompt, logoBase64, templateBase64, companyName, contactEmail, clientGeminiKeys, clientOpenAIKey } = req.body;
 
   if (!prompt || typeof prompt !== 'string' || prompt.trim().length < 3) {
     return res.status(400).json({ error: 'Prompt must be at least 3 characters.' });
@@ -60,6 +60,7 @@ app.post('/api/generate', async (req, res) => {
       companyName: companyName || process.env.COMPANY_NAME || 'ZayTech',
       contactEmail: contactEmail || process.env.CONTACT_EMAIL || 'zaytech@gmail.com',
       logoBase64: logoBase64 || null,
+      templateBase64: templateBase64 || null,
     });
 
     const result = {

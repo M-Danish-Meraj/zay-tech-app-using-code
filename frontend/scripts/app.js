@@ -162,6 +162,7 @@ async function handleGenerate() {
     companyName: localSet.companyName || 'ZayTech',
     contactEmail: localSet.contactEmail || 'zaytech@gmail.com',
     logoBase64: localSet.logoDataUrl || null,
+    templateBase64: localSet.templateDataUrl || null,
     clientGeminiKeys: [localSet.gemini1, localSet.gemini2, localSet.gemini3].filter(Boolean),
     clientOpenAIKey: localSet.openaiKey || null,
   };
@@ -390,15 +391,27 @@ const templateStatusBadge = document.getElementById('template-status-badge');
 const btnDownload = document.getElementById('btn-download');
 
 async function checkTemplate() {
+  const localSet = getLocalSettings();
+
+  if (templatePreviewImg && templatePreviewContainer && templateStatusBadge) {
+    if (localSet.templateDataUrl) {
+      templatePreviewImg.src = localSet.templateDataUrl;
+      templatePreviewContainer.style.display = 'flex';
+      templateStatusBadge.textContent = '✓ Active Template';
+      templateStatusBadge.classList.add('active');
+      return;
+    }
+  }
+
   try {
     const res = await fetch(`${API_BASE}/template`);
     const data = await res.json();
-    if (data.exists) {
+    if (data.exists && templatePreviewImg && templatePreviewContainer && templateStatusBadge) {
       templatePreviewImg.src = data.url;
       templatePreviewContainer.style.display = 'flex';
       templateStatusBadge.textContent = '✓ Active Template';
       templateStatusBadge.classList.add('active');
-    } else {
+    } else if (templatePreviewContainer && templateStatusBadge) {
       templatePreviewContainer.style.display = 'none';
       templateStatusBadge.textContent = 'No template set';
       templateStatusBadge.classList.remove('active');
@@ -414,38 +427,37 @@ templateFileInput?.addEventListener('change', async (e) => {
 
   const reader = new FileReader();
   reader.onload = async () => {
-    const base64 = reader.result;
+    const dataUrl = reader.result;
+    
+    // Save to mobile local device storage
+    saveLocalSettings({ templateDataUrl: dataUrl });
+    toast('Reference poster template saved to your device! 🖼️');
+    checkTemplate();
+
+    // Sync with backend if available
     try {
-      const res = await fetch(`${API_BASE}/template/upload`, {
+      await fetch(`${API_BASE}/template/upload`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64 })
+        body: JSON.stringify({ imageBase64: dataUrl })
       });
-      const data = await res.json();
-      if (data.success) {
-        toast('Reference template uploaded successfully!');
-        checkTemplate();
-      } else {
-        toast(data.error || 'Failed to upload template', 'error');
-      }
     } catch (err) {
-      toast('Failed to upload template image', 'error');
+      console.warn('Backend template sync notice:', err?.message || err);
     }
   };
   reader.readAsDataURL(file);
 });
 
 btnDeleteTemplate?.addEventListener('click', async () => {
+  saveLocalSettings({ templateDataUrl: null });
+  if (templateFileInput) templateFileInput.value = '';
+  toast('Reference template removed');
+  checkTemplate();
+
   try {
-    const res = await fetch(`${API_BASE}/template`, { method: 'DELETE' });
-    const data = await res.json();
-    if (data.success) {
-      toast('Reference template deleted');
-      templateFileInput.value = '';
-      checkTemplate();
-    }
+    await fetch(`${API_BASE}/template`, { method: 'DELETE' });
   } catch (err) {
-    toast('Failed to delete template', 'error');
+    console.warn('Backend template delete notice:', err?.message || err);
   }
 });
 
