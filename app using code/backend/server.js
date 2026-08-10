@@ -163,6 +163,77 @@ app.delete('/api/template', (req, res) => {
   }
 });
 
+// ── API: Settings Management ──────────────────────────────────────────────────
+function maskKey(key) {
+  if (!key || typeof key !== 'string' || key.trim() === '' || key.includes('your_')) return '';
+  const trimmed = key.trim();
+  if (trimmed.length <= 10) return '********';
+  return `${trimmed.slice(0, 6)}...${trimmed.slice(-4)}`;
+}
+
+app.get('/api/settings', (req, res) => {
+  res.json({
+    geminiKey1Masked: maskKey(process.env.GEMINI_API_KEY_1),
+    geminiKey2Masked: maskKey(process.env.GEMINI_API_KEY_2),
+    geminiKey3Masked: maskKey(process.env.GEMINI_API_KEY_3),
+    openaiKeyMasked: maskKey(process.env.OPENAI_API_KEY),
+    hasGeminiKey1: Boolean(process.env.GEMINI_API_KEY_1 && !process.env.GEMINI_API_KEY_1.includes('your_')),
+    hasOpenAIKey: Boolean(process.env.OPENAI_API_KEY && !process.env.OPENAI_API_KEY.includes('your_')),
+    companyName: process.env.COMPANY_NAME || 'ZayTech',
+    contactEmail: process.env.CONTACT_EMAIL || 'zaytech@gmail.com',
+  });
+});
+
+app.post('/api/settings', (req, res) => {
+  try {
+    const { geminiKey1, geminiKey2, geminiKey3, openaiKey, companyName, contactEmail } = req.body;
+
+    // Update in-memory process.env if provided (keep existing if unedited placeholder/empty)
+    if (geminiKey1 !== undefined && !geminiKey1.includes('...')) process.env.GEMINI_API_KEY_1 = geminiKey1.trim();
+    if (geminiKey2 !== undefined && !geminiKey2.includes('...')) process.env.GEMINI_API_KEY_2 = geminiKey2.trim();
+    if (geminiKey3 !== undefined && !geminiKey3.includes('...')) process.env.GEMINI_API_KEY_3 = geminiKey3.trim();
+    if (openaiKey !== undefined && !openaiKey.includes('...')) process.env.OPENAI_API_KEY = openaiKey.trim();
+    if (companyName) process.env.COMPANY_NAME = companyName.trim();
+    if (contactEmail) process.env.CONTACT_EMAIL = contactEmail.trim();
+
+    // Persist to .env file on disk
+    const envPath = path.join(__dirname, '.env');
+    const envContent = `# Server Configuration
+PORT=${PORT}
+
+# ── Gemini API Keys (for text, prompt & fallback image generation) ────────────
+GEMINI_API_KEY_1=${process.env.GEMINI_API_KEY_1 || ''}
+GEMINI_API_KEY_2=${process.env.GEMINI_API_KEY_2 || ''}
+GEMINI_API_KEY_3=${process.env.GEMINI_API_KEY_3 || ''}
+
+# ── OpenAI API Key (for DALL-E 3 image generation & LLM fallback) ─────────────
+OPENAI_API_KEY=${process.env.OPENAI_API_KEY || ''}
+
+# ── Branding Overlays ─────────────────────────────────────────────────────────
+CONTACT_EMAIL=${process.env.CONTACT_EMAIL || 'zaytech@gmail.com'}
+LOGO_PATH=./assets/logo.jpeg
+COMPANY_NAME=${process.env.COMPANY_NAME || 'ZayTech'}
+`;
+
+    fs.writeFileSync(envPath, envContent, 'utf-8');
+    console.log('⚙️ Settings updated and saved to .env');
+
+    return res.json({
+      success: true,
+      message: 'Settings updated successfully!',
+      geminiKey1Masked: maskKey(process.env.GEMINI_API_KEY_1),
+      geminiKey2Masked: maskKey(process.env.GEMINI_API_KEY_2),
+      geminiKey3Masked: maskKey(process.env.GEMINI_API_KEY_3),
+      openaiKeyMasked: maskKey(process.env.OPENAI_API_KEY),
+      companyName: process.env.COMPANY_NAME,
+      contactEmail: process.env.CONTACT_EMAIL,
+    });
+  } catch (err) {
+    console.error('❌ Failed to save settings:', err);
+    return res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
 // ── Catch-all: serve PWA index.html for SPA routing ──────────────────────────
 app.get('*', (req, res) => {
   const indexPath = path.join(frontendDir, 'index.html');

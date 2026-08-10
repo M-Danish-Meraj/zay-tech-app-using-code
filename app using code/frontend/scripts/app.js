@@ -11,12 +11,16 @@ const sections = {
   loading:   document.getElementById('section-loading'),
   result:    document.getElementById('section-result'),
   history:   document.getElementById('section-history'),
+  settings:  document.getElementById('section-settings'),
 };
 
 const promptInput   = document.getElementById('prompt-input');
 const charCount     = document.getElementById('char-count');
 const btnGenerate   = document.getElementById('btn-generate');
 const btnHistory    = document.getElementById('btn-history');
+const btnSettings   = document.getElementById('btn-settings');
+const btnBackSettings = document.getElementById('btn-back-settings');
+const btnSaveSettings = document.getElementById('btn-save-settings');
 const btnApprove    = document.getElementById('btn-approve');
 const btnReject     = document.getElementById('btn-reject');
 const btnRegen      = document.getElementById('btn-regen');
@@ -27,6 +31,16 @@ const installBanner = document.getElementById('install-banner');
 const btnInstall    = document.getElementById('btn-install');
 const btnDismiss    = document.getElementById('btn-dismiss');
 const toastContainer = document.getElementById('toast-container');
+
+// Settings Inputs
+const inputGemini1 = document.getElementById('input-gemini-1');
+const inputGemini2 = document.getElementById('input-gemini-2');
+const inputGemini3 = document.getElementById('input-gemini-3');
+const inputOpenAI  = document.getElementById('input-openai');
+const inputCompanyName = document.getElementById('input-company-name');
+const inputContactEmail = document.getElementById('input-contact-email');
+const geminiStatusBadge = document.getElementById('gemini-status-badge');
+const openaiStatusBadge = document.getElementById('openai-status-badge');
 
 // Loading steps
 const steps = [
@@ -447,6 +461,79 @@ async function handleDownloadImage() {
   }
 }
 
+/* ── Settings Management ────────────────────────────────────────────────────── */
+async function loadSettings() {
+  try {
+    const res = await fetch(`${API_BASE}/settings`);
+    const data = await res.json();
+
+    if (inputGemini1) inputGemini1.value = data.geminiKey1Masked || '';
+    if (inputGemini2) inputGemini2.value = data.geminiKey2Masked || '';
+    if (inputGemini3) inputGemini3.value = data.geminiKey3Masked || '';
+    if (inputOpenAI)  inputOpenAI.value  = data.openaiKeyMasked || '';
+    if (inputCompanyName) inputCompanyName.value = data.companyName || 'ZayTech';
+    if (inputContactEmail) inputContactEmail.value = data.contactEmail || 'zaytech@gmail.com';
+
+    // Status Badges
+    if (geminiStatusBadge) {
+      if (data.hasGeminiKey1) {
+        geminiStatusBadge.textContent = '✓ Gemini Active';
+        geminiStatusBadge.classList.add('active');
+      } else {
+        geminiStatusBadge.textContent = 'Not Configured';
+        geminiStatusBadge.classList.remove('active');
+      }
+    }
+
+    if (openaiStatusBadge) {
+      if (data.hasOpenAIKey) {
+        openaiStatusBadge.textContent = '✓ OpenAI Active (DALL-E 3)';
+        openaiStatusBadge.classList.add('active');
+      } else {
+        openaiStatusBadge.textContent = 'Optional';
+        openaiStatusBadge.classList.remove('active');
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load settings:', err);
+  }
+}
+
+async function handleSaveSettings() {
+  toast('Saving settings...');
+
+  const body = {
+    geminiKey1: inputGemini1?.value || '',
+    geminiKey2: inputGemini2?.value || '',
+    geminiKey3: inputGemini3?.value || '',
+    openaiKey:  inputOpenAI?.value  || '',
+    companyName: inputCompanyName?.value || 'ZayTech',
+    contactEmail: inputContactEmail?.value || 'zaytech@gmail.com',
+  };
+
+  try {
+    const res = await fetch(`${API_BASE}/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (data.success) {
+      toast('Settings saved & applied instantly! 💾');
+      loadSettings();
+      // Update UI overlays instantly
+      const overlayLogoText = document.getElementById('overlay-logo-text');
+      const overlayEmailText = document.getElementById('overlay-email-text');
+      if (overlayLogoText) overlayLogoText.textContent = data.companyName;
+      if (overlayEmailText) overlayEmailText.textContent = data.contactEmail;
+    } else {
+      toast(data.error || 'Failed to save settings', 'error');
+    }
+  } catch (err) {
+    toast('Error saving settings', 'error');
+  }
+}
+
 /* ── Event Listeners ────────────────────────────────────────────────────────── */
 btnGenerate.addEventListener('click', handleGenerate);
 promptInput.addEventListener('keydown', (e) => {
@@ -461,8 +548,18 @@ btnStartOver.addEventListener('click', resetGenerator);
 btnHistory.addEventListener('click', showHistory);
 btnBackHistory.addEventListener('click', resetGenerator);
 
-// Initial template check
+btnSettings?.addEventListener('click', () => {
+  loadSettings();
+  showSection('settings');
+});
+btnBackSettings?.addEventListener('click', () => {
+  showSection('generator');
+});
+btnSaveSettings?.addEventListener('click', handleSaveSettings);
+
+// Initial checks on page load
 checkTemplate();
+loadSettings();
 
 /* ── PWA Install Prompt ─────────────────────────────────────────────────────── */
 window.addEventListener('beforeinstallprompt', (e) => {

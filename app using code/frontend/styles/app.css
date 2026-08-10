@@ -514,6 +514,23 @@ header {
   margin-top: 10px;
 }
 
+/* ── Settings UI ───────────────────────────────────────────────────────────── */
+.settings-field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--slate-400);
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+.settings-input {
+  min-height: 42px;
+  height: 42px;
+  font-family: inherit;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
 /* ── Responsive ────────────────────────────────────────────────────────────── */
 @media (max-width: 480px) {
   #app { padding: 0 12px 48px; }

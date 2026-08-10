@@ -45,7 +45,10 @@
         <div class="header-subtitle">LangChain · LangGraph · Gemini</div>
       </div>
     </div>
-    <button id="btn-history">🕐 History</button>
+    <div style="display:flex;gap:8px;">
+      <button id="btn-settings" class="btn-secondary" style="padding:6px 12px;font-size:12px">⚙️ Settings</button>
+      <button id="btn-history" class="btn-secondary" style="padding:6px 12px;font-size:12px">🕐 History</button>
+    </div>
   </header>
 
   <!-- ══ SECTION: Generator ═══════════════════════════════════════════════════ -->
@@ -178,6 +181,59 @@
       <button id="btn-back-history" class="btn-secondary">← Back</button>
     </div>
     <div id="history-grid" class="history-grid"></div>
+  <!-- ══ SECTION: Settings ═════════════════════════════════════════════════════ -->
+  <section id="section-settings" class="section">
+    <div class="history-header">
+      <h2>⚙️ API Keys & Application Settings</h2>
+      <button id="btn-back-settings" class="btn-secondary">← Back</button>
+    </div>
+
+    <div class="card">
+      <p class="text-muted" style="margin-bottom:16px;">
+        Manage your Gemini and OpenAI API keys directly from the browser. Keys are saved to the backend <code>.env</code> file and applied immediately without requiring a server restart.
+      </p>
+
+      <!-- Gemini Keys Group -->
+      <div style="margin-bottom:20px;">
+        <div class="input-label" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>🔑 Gemini API Keys (For Text & Fallback Image Gen)</span>
+          <span id="gemini-status-badge" class="template-status">Check Status</span>
+        </div>
+        
+        <label class="settings-field-label">Primary Key (GEMINI_API_KEY_1)</label>
+        <input type="password" id="input-gemini-1" class="prompt-input settings-input" placeholder="AIzaSy..." />
+        
+        <label class="settings-field-label">Backup Key 2 (Optional)</label>
+        <input type="password" id="input-gemini-2" class="prompt-input settings-input" placeholder="AIzaSy..." />
+        
+        <label class="settings-field-label">Backup Key 3 (Optional)</label>
+        <input type="password" id="input-gemini-3" class="prompt-input settings-input" placeholder="AIzaSy..." />
+      </div>
+
+      <!-- OpenAI Key Group -->
+      <div style="margin-bottom:20px;">
+        <div class="input-label" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>🤖 OpenAI API Key (For DALL-E 3 & LLM Fallback)</span>
+          <span id="openai-status-badge" class="template-status">Check Status</span>
+        </div>
+        <label class="settings-field-label">OpenAI Key (OPENAI_API_KEY)</label>
+        <input type="password" id="input-openai" class="prompt-input settings-input" placeholder="sk-proj-..." />
+      </div>
+
+      <!-- Branding Group -->
+      <div style="margin-bottom:20px;">
+        <div class="input-label">🏢 Branding & Overlays</div>
+        <label class="settings-field-label">Company Name</label>
+        <input type="text" id="input-company-name" class="prompt-input settings-input" placeholder="ZayTech" />
+        
+        <label class="settings-field-label">Contact Email</label>
+        <input type="email" id="input-contact-email" class="prompt-input settings-input" placeholder="zaytech@gmail.com" />
+      </div>
+
+      <button id="btn-save-settings" class="btn-primary">
+        💾 Save Settings
+      </button>
+    </div>
   </section>
 
 </div><!-- /#app -->

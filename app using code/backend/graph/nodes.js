@@ -14,17 +14,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const templatePath = path.join(__dirname, '..', 'templates', 'reference.png');
 
-// ── Collect all valid API keys from env ──────────────────────────────────────
-const ALL_KEYS = [
-  process.env.GEMINI_API_KEY_1,
-  process.env.GEMINI_API_KEY_2,
-  process.env.GEMINI_API_KEY_3,
-  // Legacy single-key support
-  process.env.GEMINI_API_KEY,
-].filter(k => k && k.trim() && !k.includes('your_gemini'));
-
-if (ALL_KEYS.length === 0) {
-  console.error('❌ No valid Gemini API keys found. Set GEMINI_API_KEY_1 in .env');
+// ── Helper: Dynamically collect all valid Gemini API keys from process.env ───
+function getGeminiKeys() {
+  return [
+    process.env.GEMINI_API_KEY_1,
+    process.env.GEMINI_API_KEY_2,
+    process.env.GEMINI_API_KEY_3,
+    process.env.GEMINI_API_KEY,
+  ].filter(k => k && typeof k === 'string' && k.trim() && !k.includes('your_gemini'));
 }
 
 // ── Text models to try in order ──────────────────────────────────────────────
@@ -41,25 +38,48 @@ const IMAGE_MODELS = [
   'gemini-2.5-flash-image', // Nano Banana
 ];
 
-// ── Helper: try each key × each model until one works ───────────────────────
-async function withFallback(fn) {
+// ── Helper: try each Gemini key × model, then OpenAI as ultimate LLM fallback
+async function withFallback(fn, openAIFallbackPromptBuilder = null) {
   const errors = [];
-  for (const apiKey of ALL_KEYS) {
+  const geminiKeys = getGeminiKeys();
+
+  for (const apiKey of geminiKeys) {
     for (const model of TEXT_MODELS) {
       try {
         console.log(`  [fallback] Trying model=${model} key=...${apiKey.slice(-6)}`);
         return await fn(apiKey, model);
       } catch (err) {
         const msg = err?.message || String(err);
-        console.warn(`  [fallback] Failed (${model}): ${msg.slice(0, 100)}`);
+        console.warn(`  [fallback] Gemini failed (${model}): ${msg.slice(0, 100)}`);
         errors.push({ apiKey: apiKey.slice(-6), model, error: msg.slice(0, 120) });
-        // Skip remaining models for this key if the key itself is invalid
         if (msg.includes('API_KEY_INVALID') || msg.includes('not valid')) break;
       }
     }
   }
+
+  // Fallback to OpenAI text model if configured
+  const openAIKey = process.env.OPENAI_API_KEY;
+  if (openAIKey && !openAIKey.includes('your_') && openAIFallbackPromptBuilder) {
+    try {
+      console.log('  [fallback] Trying OpenAI gpt-4o-mini text fallback...');
+      const openai = new OpenAI({ apiKey: openAIKey });
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: openAIFallbackPromptBuilder() }],
+        temperature: 0.7,
+      });
+      const text = response.choices?.[0]?.message?.content;
+      if (text) {
+        console.log('  [fallback] ✅ OpenAI text fallback succeeded.');
+        return text;
+      }
+    } catch (openAiErr) {
+      console.warn('  [fallback] OpenAI text fallback failed:', openAiErr?.message || openAiErr);
+    }
+  }
+
   const summary = errors.map(e => `[key=...${e.apiKey} model=${e.model}] ${e.error}`).join('\n');
-  throw new Error(`All API keys/models failed:\n${summary}`);
+  throw new Error(`All Gemini API keys/models failed:\n${summary}`);
 }
 
 // ── Prompt templates ─────────────────────────────────────────────────────────
@@ -143,59 +163,84 @@ export async function generateImagePrompt(state) {
     }
   }
 
-  const imagePrompt = await withFallback(async (apiKey, model) => {
-    const llm = new ChatGoogleGenerativeAI({ model, apiKey, temperature: 0.8 });
-    const chain = promptRefineTemplate.pipe(llm).pipe(new StringOutputParser());
-    return chain.invoke({ 
-      userPrompt: state.userPrompt,
-      companyName: process.env.COMPANY_NAME || 'ZayTech'
-    });
-  });
+  const imagePrompt = await withFallback(
+    async (apiKey, model) => {
+      const llm = new ChatGoogleGenerativeAI({ model, apiKey, temperature: 0.8 });
+      const chain = promptRefineTemplate.pipe(llm).pipe(new StringOutputParser());
+      return chain.invoke({ 
+        userPrompt: state.userPrompt,
+        companyName: process.env.COMPANY_NAME || 'ZayTech'
+      });
+    },
+    () => `You are an expert AI prompt engineer. Translate this concept into an ultra-detailed text-to-image prompt for a high-converting promotional graphic banner for ${process.env.COMPANY_NAME || 'ZayTech'}.\nUser Request: "${state.userPrompt}"\nOutput ONLY the final raw prompt string.`
+  );
 
   console.log('[Node 1] Image prompt:', imagePrompt.trim());
   return { ...state, imagePrompt: imagePrompt.trim() };
 }
 
-// ── Node 2: Generate image with OpenAI DALL-E 3 ─────────────────────────────
+// ── Node 2: Generate image (OpenAI DALL-E 3 -> Gemini Imagen -> Pollinations) ─────────
 export async function generateImage(state) {
-  console.log('[Node 2] Generating image with OpenAI DALL-E 3...');
+  console.log('[Node 2] Generating image...');
+  const cleanPrompt = (state.imagePrompt || state.userPrompt || '').replace(/[\*\#]/g, '').trim();
 
-  try {
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
-
-    // Clean prompt string to prevent formatting issues
-    const cleanPrompt = state.imagePrompt.replace(/[\*\#]/g, '').trim();
-
-    const response = await openai.images.generate({
-      model: 'dall-e-3',
-      prompt: cleanPrompt,
-      n: 1,
-      size: '1024x1024',
-      quality: 'standard', // or 'hd' for higher crispness
-      response_format: 'url', // or 'b64_json' if you prefer base64 data
-    });
-
-    const imageUrl = response.data[0].url;
-
-    if (imageUrl) {
-      console.log('[Node 2] ✅ OpenAI image generated successfully.');
-      return {
-        ...state,
-        imageUrl: imageUrl,
-        imageSource: 'openai',
-      };
+  // Attempt 1: OpenAI DALL-E 3 if OPENAI_API_KEY is configured
+  const openAIKey = process.env.OPENAI_API_KEY;
+  if (openAIKey && !openAIKey.includes('your_')) {
+    try {
+      console.log('[Node 2] Attempt 1: Generating image with OpenAI DALL-E 3...');
+      const openai = new OpenAI({ apiKey: openAIKey });
+      const response = await openai.images.generate({
+        model: 'dall-e-3',
+        prompt: cleanPrompt,
+        n: 1,
+        size: '1024x1024',
+        quality: 'standard',
+        response_format: 'url',
+      });
+      const imageUrl = response.data?.[0]?.url;
+      if (imageUrl) {
+        console.log('[Node 2] ✅ OpenAI image generated successfully.');
+        return { ...state, imageUrl, imageSource: 'openai' };
+      }
+    } catch (err) {
+      console.warn('[Node 2] OpenAI DALL-E 3 attempt failed:', err?.message || err);
     }
-  } catch (err) {
-    console.error('[Node 2] OpenAI image generation failed:', err?.message || err);
   }
 
-  // Fallback: Pollinations AI (FLUX)
-  console.log('[Node 2] OpenAI attempt failed — using Pollinations fallback...');
+  // Attempt 2: Gemini Image Generation / Imagen if Gemini keys are configured
+  const geminiKeys = getGeminiKeys();
+  if (geminiKeys.length > 0) {
+    for (const apiKey of geminiKeys) {
+      for (const modelName of IMAGE_MODELS) {
+        try {
+          console.log(`[Node 2] Attempt 2: Generating image with Gemini model=${modelName}...`);
+          const genAI = new GoogleGenerativeAI(apiKey);
+          const imageModel = genAI.getGenerativeModel({ model: modelName });
+          const result = await imageModel.generateContent([cleanPrompt]);
+          const parts = result.response.candidates?.[0]?.content?.parts || [];
+          const imagePart = parts.find(p => p.inlineData?.mimeType?.startsWith('image/'));
+          if (imagePart) {
+            console.log(`[Node 2] ✅ Gemini image generated using ${modelName}.`);
+            return {
+              ...state,
+              imageBase64: imagePart.inlineData.data,
+              imageMimeType: imagePart.inlineData.mimeType,
+              imageSource: 'gemini',
+            };
+          }
+        } catch (err) {
+          console.warn(`[Node 2] Gemini image gen failed (${modelName}):`, err?.message?.slice(0, 100));
+        }
+      }
+    }
+  }
+
+  // Attempt 3: Pollinations AI (FLUX) - Guaranteed free fallback
+  console.log('[Node 2] Attempt 3: Using Pollinations AI FLUX fallback...');
   const seed = Math.floor(Math.random() * 99999);
   const encodedPrompt = encodeURIComponent(
-    state.imagePrompt + ', modern tech marketing banner, professional vector design, 8k'
+    cleanPrompt + ', modern tech marketing banner, professional vector design, 8k'
   );
 
   return {
@@ -209,14 +254,17 @@ export async function generateImage(state) {
 export async function generateCaption(state) {
   console.log('[Node 3] Generating caption...');
 
-  const caption = await withFallback(async (apiKey, model) => {
-    const llm = new ChatGoogleGenerativeAI({ model, apiKey, temperature: 0.8 });
-    const chain = captionTemplate.pipe(llm).pipe(new StringOutputParser());
-    return chain.invoke({
-      userPrompt: state.userPrompt,
-      companyName: process.env.COMPANY_NAME || 'ZayTech',
-    });
-  });
+  const caption = await withFallback(
+    async (apiKey, model) => {
+      const llm = new ChatGoogleGenerativeAI({ model, apiKey, temperature: 0.8 });
+      const chain = captionTemplate.pipe(llm).pipe(new StringOutputParser());
+      return chain.invoke({
+        userPrompt: state.userPrompt,
+        companyName: process.env.COMPANY_NAME || 'ZayTech',
+      });
+    },
+    () => `You are an expert social media copywriter for ${process.env.COMPANY_NAME || 'ZayTech'}. Create an engaging social media caption for: "${state.userPrompt}". Include emojis and hashtags.`
+  );
 
   console.log('[Node 3] Caption generated.');
   return { ...state, caption: caption.trim() };
