@@ -678,7 +678,11 @@ btnHistory.addEventListener('click', showHistory);
 btnBackHistory.addEventListener('click', resetGenerator);
 
 btnSettings?.addEventListener('click', () => {
-  loadSettings();
+  try {
+    loadSettings();
+  } catch (err) {
+    console.error('Error loading settings:', err);
+  }
   showSection('settings');
 });
 btnBackSettings?.addEventListener('click', () => {
