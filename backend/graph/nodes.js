@@ -141,8 +141,6 @@ export async function generateImagePrompt(state) {
           companyName: process.env.COMPANY_NAME || 'ZayTech'
         });
 
-        const visionPrompt = `${formattedInstruction}\n\nIMPORTANT ADDITIONAL INSTRUCTION: An attached reference template image has been provided above. Analyze its visual layout, grid arrangement, card structure, and color scheme. Ensure your generated text-to-image prompt closely follows the visual structure and design style of this reference image while adapting to the user's specific request ("${state.userPrompt}").`;
-
         const visionPayload = [];
         
         // Attach reference template if present
@@ -161,8 +159,8 @@ export async function generateImagePrompt(state) {
           });
         }
 
-        const visionPrompt = `${formattedInstruction}\n\nIMPORTANT ADDITIONAL INSTRUCTION: Attached binary reference image(s)/logo have been provided above. Analyze the visual elements, brand styling, color scheme, and layout. Ensure your generated text-to-image prompt closely follows the visual structure and brand style while adapting to the user's specific request ("${state.userPrompt}").`;
-        visionPayload.push(visionPrompt);
+        const visionTextInstruction = `${formattedInstruction}\n\nIMPORTANT ADDITIONAL INSTRUCTION: Attached binary reference image(s)/logo have been provided above. Analyze the visual elements, brand styling, color scheme, and layout. Ensure your generated text-to-image prompt closely follows the visual structure and brand style while adapting to the user's specific request ("${state.userPrompt}").`;
+        visionPayload.push(visionTextInstruction);
 
         const result = await visionModel.generateContent(visionPayload);
         return result.response.text();

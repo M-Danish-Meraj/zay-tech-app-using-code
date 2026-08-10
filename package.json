@@ -3,12 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "install:all": "npm install && npm install --prefix server && npm install --prefix mobile",
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:mobile\"",
-    "dev:server": "npm run dev --prefix server",
-    "dev:mobile": "npm run start --prefix mobile",
-    "start:server": "npm start --prefix server",
-    "start:mobile": "npm run start --prefix mobile"
+    "start": "npm start --prefix backend",
+    "dev": "npm run dev --prefix backend",
+    "install:all": "npm install --prefix backend"
   },
   "dependencies": {
     "concurrently": "^8.2.2"
